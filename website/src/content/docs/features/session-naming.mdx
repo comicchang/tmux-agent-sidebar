@@ -47,9 +47,18 @@ The system prompt asks the model for a single short word (max 16 characters, mat
 | --- | --- | --- |
 | `@sidebar_llm_endpoint` | _(required)_ | Full `http://` URL of an OpenAI-compatible `/v1/chat/completions` endpoint. Plaintext only — TLS is not supported yet. |
 | `@sidebar_llm_model` | _(required)_ | Model name sent in the request body (`llama3.2:3b`, `gpt-oss:20b`, `gpt-4o-mini`, …). |
-| `@sidebar_llm_api_key` | _(empty)_ | Optional bearer token. When set, the sidebar sends `Authorization: Bearer <value>`. |
 | `@sidebar_llm_auto_rename` | `off` | Set to `on` to generate a title automatically on the first `Stop` hook. |
 | `@sidebar_llm_timeout_ms` | `15000` | HTTP connect + read/write timeout per request. |
+
+### API key (environment variable)
+
+Optional bearer tokens are **not** read from tmux options — any tmux client can dump `tmux show-option -g`, so storing a credential there would make it readable by every session the user owns. Export it in your shell instead:
+
+```sh
+export TMUX_AGENT_SIDEBAR_LLM_API_KEY="sk-..."
+```
+
+When set, the sidebar sends `Authorization: Bearer <value>` with each request. For local runners (Ollama, LM Studio, llama.cpp server) no key is needed.
 
 ## Storage and lifecycle
 

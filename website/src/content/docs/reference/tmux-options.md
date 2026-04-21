@@ -25,9 +25,10 @@ Opt-in feature covered in detail on the [Session naming](/tmux-agent-sidebar/fea
 | ---------------------------- | ------- | ---------------------------------------------------------------------------------------- |
 | `@sidebar_llm_endpoint`      | unset   | Full `http://` URL of an OpenAI-compatible `/v1/chat/completions` endpoint (plaintext)   |
 | `@sidebar_llm_model`         | unset   | Model name sent in the request body (e.g. `llama3.2:3b`)                                 |
-| `@sidebar_llm_api_key`       | unset   | Optional bearer token — sent as `Authorization: Bearer <value>` when set                 |
 | `@sidebar_llm_auto_rename`   | `off`   | `on` to auto-generate a title on each session's first `Stop` hook                        |
 | `@sidebar_llm_timeout_ms`    | `15000` | HTTP timeout per request                                                                 |
+
+Bearer tokens are sourced from the `TMUX_AGENT_SIDEBAR_LLM_API_KEY` environment variable (not tmux options — tmux options are readable by any tmux client and must not hold secrets).
 
 ## Worktree spawn defaults
 
