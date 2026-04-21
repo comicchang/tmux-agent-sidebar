@@ -1,5 +1,5 @@
 use std::io::{BufRead, BufReader, Read, Write};
-use std::net::{TcpStream, ToSocketAddrs};
+use std::net::{IpAddr, TcpStream, ToSocketAddrs};
 use std::time::Duration;
 
 use super::client::{self, ChatRequest, LlmError};
@@ -53,10 +53,28 @@ fn connect(host: &str, port: u16, timeout: Duration) -> Result<TcpStream, LlmErr
     }))
 }
 
+/// Return `true` when `host` is guaranteed to resolve only to loopback
+/// addresses. Accepts the literal IPs `127.0.0.0/8` and `::1`, plus
+/// the conventional hostname `localhost`. Any other hostname is
+/// rejected so a misconfigured `@sidebar_llm_endpoint` cannot exfil
+/// a bearer token over plaintext to a remote host.
+fn host_is_loopback(host: &str) -> bool {
+    if host.eq_ignore_ascii_case("localhost") {
+        return true;
+    }
+    match host.parse::<IpAddr>() {
+        Ok(ip) => ip.is_loopback(),
+        Err(_) => false,
+    }
+}
+
 /// Perform a plaintext HTTP/1.1 POST and return the response body.
 ///
 /// v1 only speaks `http://` to cover local runners (Ollama, LM Studio,
-/// llama.cpp server) without pulling in a TLS stack.
+/// llama.cpp server) without pulling in a TLS stack. When `api_key`
+/// is provided, the target host MUST be a loopback address so the
+/// `Authorization: Bearer …` header is never sent over an
+/// unencrypted off-host wire.
 pub fn post(
     endpoint: &str,
     body: &str,
@@ -64,6 +82,12 @@ pub fn post(
     timeout: Duration,
 ) -> Result<String, LlmError> {
     let parsed = parse_endpoint(endpoint)?;
+    if api_key.is_some() && !host_is_loopback(parsed.host) {
+        return Err(LlmError::Http(format!(
+            "refusing to send Authorization over plaintext http:// to non-loopback host {:?}",
+            parsed.host
+        )));
+    }
     let mut stream = connect(parsed.host, parsed.port, timeout)?;
     stream
         .set_read_timeout(Some(timeout))
@@ -344,6 +368,65 @@ mod tests {
 
         let request = String::from_utf8_lossy(&handle.join().unwrap()).to_string();
         assert!(request.contains("Authorization: Bearer sk-secret"));
+    }
+
+    #[test]
+    fn host_is_loopback_accepts_localhost_and_127_and_v6_loopback() {
+        assert!(host_is_loopback("localhost"));
+        assert!(host_is_loopback("LOCALHOST"));
+        assert!(host_is_loopback("127.0.0.1"));
+        assert!(host_is_loopback("127.1.2.3"));
+        assert!(host_is_loopback("::1"));
+    }
+
+    #[test]
+    fn host_is_loopback_rejects_remote_hosts_and_dns_names() {
+        assert!(!host_is_loopback("example.com"));
+        assert!(!host_is_loopback("api.openai.com"));
+        assert!(!host_is_loopback("192.168.1.10"));
+        assert!(!host_is_loopback("10.0.0.1"));
+        // A DNS name that might resolve to loopback is still rejected
+        // — we refuse to depend on runtime resolution for a trust call.
+        assert!(!host_is_loopback("my-host.local"));
+    }
+
+    #[test]
+    fn post_refuses_bearer_over_plaintext_to_remote_host() {
+        // No server needs to exist — the guard short-circuits before
+        // we try to connect.
+        let err = post(
+            "http://api.example.com/v1/chat/completions",
+            "{}",
+            Some("sk-secret"),
+            Duration::from_millis(500),
+        )
+        .unwrap_err();
+        match err {
+            LlmError::Http(msg) => {
+                assert!(
+                    msg.contains("Authorization") && msg.contains("non-loopback"),
+                    "expected credential guard error, got: {msg}"
+                );
+            }
+            other => panic!("expected Http guard error, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn post_allows_bearer_over_loopback() {
+        // Loopback + api_key must not be short-circuited. We verify by
+        // running a real roundtrip against a 127.0.0.1 listener.
+        let (endpoint, handle) = echo_server(r#"{"choices":[{"message":{"content":"ok"}}]}"#);
+        let body = post(
+            &endpoint,
+            "{}",
+            Some("sk-local"),
+            Duration::from_millis(2_000),
+        )
+        .unwrap();
+        assert!(body.contains("\"content\":\"ok\""));
+        let request = String::from_utf8_lossy(&handle.join().unwrap()).to_string();
+        assert!(request.contains("Authorization: Bearer sk-local"));
     }
 
     #[test]

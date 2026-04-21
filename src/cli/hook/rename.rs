@@ -11,9 +11,11 @@ use super::context::AgentContext;
 /// hook, mirroring ChatGPT/Claude title-generation timing.
 ///
 /// This is fire-and-forget so the hook process returns immediately and
-/// does not block the agent. Errors are swallowed and recorded in the
-/// subprocess's own log file.
-pub(super) fn maybe_spawn_rename(pane: &str, ctx: &AgentContext<'_>, last_message: &str) {
+/// does not block the agent. The last assistant message is **not**
+/// passed via argv (which would leak via `ps`) — the Stop handler
+/// already stores it in the `@pane_prompt` tmux option, which the
+/// rename subprocess reads back via `get_pane_option_value`.
+pub(super) fn maybe_spawn_rename(pane: &str, ctx: &AgentContext<'_>) {
     let Some(session_id) = ctx.session_id.as_deref().filter(|s| !s.is_empty()) else {
         return;
     };
@@ -33,15 +35,14 @@ pub(super) fn maybe_spawn_rename(pane: &str, ctx: &AgentContext<'_>, last_messag
         return;
     };
 
-    let mut cmd = Command::new(exe);
-    cmd.arg("rename-session")
+    let _ = Command::new(exe)
+        .arg("rename-session")
         .arg("--session")
         .arg(session_id)
         .arg("--pane")
         .arg(pane)
-        .arg("--auto");
-    if !last_message.is_empty() {
-        cmd.arg("--last-message").arg(last_message);
-    }
-    let _ = cmd.stdout(Stdio::null()).stderr(Stdio::null()).spawn();
+        .arg("--auto")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
 }

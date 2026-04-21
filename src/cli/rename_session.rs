@@ -16,7 +16,6 @@ const ACTIVITY_LINES: usize = 20;
 struct ParsedArgs {
     session_id: Option<String>,
     pane: Option<String>,
-    last_message: Option<String>,
     auto: bool,
 }
 
@@ -38,13 +37,6 @@ fn parse_args(args: &[String]) -> ParsedArgs {
             i += 1;
             if let Some(v) = args.get(i) {
                 out.pane = Some(v.clone());
-            }
-        } else if let Some(value) = arg.strip_prefix("--last-message=") {
-            out.last_message = Some(value.to_string());
-        } else if arg == "--last-message" {
-            i += 1;
-            if let Some(v) = args.get(i) {
-                out.last_message = Some(v.clone());
             }
         } else if arg == "--auto" {
             out.auto = true;
@@ -74,7 +66,20 @@ pub fn cmd_rename_session(args: &[String]) -> i32 {
         return 0;
     };
 
-    let _lock = acquire_lock();
+    // The lock serializes concurrent rename calls so a thundering herd
+    // of simultaneous Stop events does not pin the local GPU. If the
+    // lock cannot be acquired (perm error, /tmp weirdness), we log
+    // explicitly and still proceed — the feature is best-effort and a
+    // slightly concurrent call is better than a silently dropped one.
+    let _lock = match acquire_lock() {
+        Ok(file) => Some(file),
+        Err(e) => {
+            log_line(&format!(
+                "rename-session: proceeding without flock ({e}); concurrent calls may overlap"
+            ));
+            None
+        }
+    };
 
     // Double-check after taking the lock so a concurrent call that just
     // wrote the name doesn't cause us to generate a duplicate.
@@ -87,10 +92,16 @@ pub fn cmd_rename_session(args: &[String]) -> i32 {
         .clone()
         .or_else(|| find_pane_for_session(session_id));
 
-    let user_payload = build_user_payload(pane.as_deref(), parsed.last_message.as_deref());
+    let user_payload = build_user_payload(pane.as_deref());
 
     match http::generate_name(&cfg, SYSTEM_PROMPT, &user_payload) {
         Ok(name) => {
+            if !is_valid_title(&name) {
+                log_line(&format!(
+                    "rename-session: rejecting invalid title for {session_id}: {name:?}"
+                ));
+                return 1;
+            }
             if let Err(e) = store::write(session_id, &name) {
                 log_line(&format!(
                     "rename-session: write failed for {session_id}: {e}"
@@ -110,11 +121,30 @@ pub fn cmd_rename_session(args: &[String]) -> i32 {
     }
 }
 
+/// Reject titles we should never render in the sidebar: empty strings,
+/// strings containing ASCII control characters (which would break tmux
+/// option storage and the row renderer), or strings that are pure
+/// punctuation after stripping.
+fn is_valid_title(title: &str) -> bool {
+    if title.is_empty() {
+        return false;
+    }
+    if title
+        .chars()
+        .any(|c| c.is_control() || c == '|' || c == '\t' || c == '\n' || c == '\r')
+    {
+        return false;
+    }
+    // Require at least one alphanumeric — a string of dashes or dots is
+    // useless as a label.
+    title.chars().any(|c| c.is_alphanumeric())
+}
+
 fn format_err(err: &LlmError) -> String {
     err.to_string()
 }
 
-fn build_user_payload(pane: Option<&str>, last_message: Option<&str>) -> String {
+fn build_user_payload(pane: Option<&str>) -> String {
     let mut buf = String::new();
     if let Some(pane_id) = pane {
         let entries = activity::read_activity_log(pane_id, ACTIVITY_LINES);
@@ -124,9 +154,12 @@ fn build_user_payload(pane: Option<&str>, last_message: Option<&str>) -> String 
                 buf.push_str(&format!("- [{}] {} {}\n", e.timestamp, e.tool, e.label));
             }
         }
-    }
-    if let Some(msg) = last_message {
-        let msg = msg.trim();
+        // The Stop hook stores `last_assistant_message` in @pane_prompt
+        // (see `handlers::on_stop`), so we read it from there instead
+        // of accepting it via argv. argv would be visible to any other
+        // user on the host via `ps`.
+        let pane_prompt = tmux::get_pane_option_value(pane_id, "@pane_prompt");
+        let msg = pane_prompt.trim();
         if !msg.is_empty() {
             let truncated: String = msg.chars().take(USER_MESSAGE_CAP).collect();
             buf.push_str("\nLast assistant message:\n");
@@ -152,23 +185,21 @@ fn find_pane_for_session(session_id: &str) -> Option<String> {
     None
 }
 
-fn acquire_lock() -> Option<File> {
+fn acquire_lock() -> std::io::Result<File> {
     let dir = store::base_dir();
-    let _ = std::fs::create_dir_all(&dir);
+    std::fs::create_dir_all(&dir)?;
     let path: PathBuf = dir.join(".lock");
     let file = OpenOptions::new()
         .create(true)
         .read(true)
         .write(true)
         .truncate(false)
-        .open(&path)
-        .ok()?;
-    unsafe {
-        if libc::flock(file.as_raw_fd(), libc::LOCK_EX) != 0 {
-            return None;
-        }
+        .open(&path)?;
+    let rc = unsafe { libc::flock(file.as_raw_fd(), libc::LOCK_EX) };
+    if rc != 0 {
+        return Err(std::io::Error::last_os_error());
     }
-    Some(file)
+    Ok(file)
 }
 
 fn log_line(msg: &str) {
@@ -191,16 +222,10 @@ mod tests {
 
     #[test]
     fn parse_args_equals_form() {
-        let args = vec![
-            "--session=abc".into(),
-            "--pane=%5".into(),
-            "--last-message=done".into(),
-            "--auto".into(),
-        ];
+        let args = vec!["--session=abc".into(), "--pane=%5".into(), "--auto".into()];
         let p = parse_args(&args);
         assert_eq!(p.session_id.as_deref(), Some("abc"));
         assert_eq!(p.pane.as_deref(), Some("%5"));
-        assert_eq!(p.last_message.as_deref(), Some("done"));
         assert!(p.auto);
     }
 
@@ -211,13 +236,10 @@ mod tests {
             "abc".into(),
             "--pane".into(),
             "%5".into(),
-            "--last-message".into(),
-            "done".into(),
         ];
         let p = parse_args(&args);
         assert_eq!(p.session_id.as_deref(), Some("abc"));
         assert_eq!(p.pane.as_deref(), Some("%5"));
-        assert_eq!(p.last_message.as_deref(), Some("done"));
         assert!(!p.auto);
     }
 
@@ -228,24 +250,52 @@ mod tests {
         assert_eq!(p.session_id.as_deref(), Some("x"));
     }
 
+    /// Regression: last_message used to arrive via argv, exposing it to
+    /// any other user on the host via `ps`. The flag has been removed
+    /// — argv now only carries control metadata (session_id, pane_id,
+    /// --auto). The last assistant message is read from `@pane_prompt`
+    /// inside `build_user_payload` instead.
     #[test]
-    fn build_user_payload_includes_last_message_when_no_pane() {
-        let out = build_user_payload(None, Some("done refactoring"));
-        assert!(out.contains("Last assistant message"));
-        assert!(out.contains("done refactoring"));
+    fn parse_args_does_not_accept_last_message_flag() {
+        let args = vec![
+            "--session".into(),
+            "abc".into(),
+            "--last-message".into(),
+            "secret".into(),
+        ];
+        let p = parse_args(&args);
+        assert_eq!(p.session_id.as_deref(), Some("abc"));
+        // --last-message is treated as an unknown flag and its value
+        // as a stray positional; neither should surface in ParsedArgs.
     }
 
     #[test]
-    fn build_user_payload_truncates_long_last_message() {
-        let long = "a".repeat(2_000);
-        let out = build_user_payload(None, Some(&long));
-        assert!(out.contains(&"a".repeat(USER_MESSAGE_CAP)));
-        assert!(!out.contains(&"a".repeat(USER_MESSAGE_CAP + 1)));
-    }
-
-    #[test]
-    fn build_user_payload_fallback_when_all_empty() {
-        let out = build_user_payload(None, None);
+    fn build_user_payload_fallback_when_no_pane() {
+        let out = build_user_payload(None);
         assert!(out.contains("no activity"));
+    }
+
+    #[test]
+    fn is_valid_title_accepts_well_formed_titles() {
+        assert!(is_valid_title("refactor"));
+        assert!(is_valid_title("fix-bug"));
+        assert!(is_valid_title("日本語"));
+        assert!(is_valid_title("api_v2"));
+    }
+
+    #[test]
+    fn is_valid_title_rejects_empty_and_control_and_pipe() {
+        assert!(!is_valid_title(""));
+        assert!(!is_valid_title("has\nnewline"));
+        assert!(!is_valid_title("has|pipe"));
+        assert!(!is_valid_title("has\ttab"));
+        assert!(!is_valid_title("bell\x07"));
+    }
+
+    #[test]
+    fn is_valid_title_rejects_pure_punctuation() {
+        assert!(!is_valid_title("---"));
+        assert!(!is_valid_title("..."));
+        assert!(!is_valid_title("-_-"));
     }
 }

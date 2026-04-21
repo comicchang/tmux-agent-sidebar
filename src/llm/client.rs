@@ -67,18 +67,53 @@ pub fn parse_response(body: &str) -> Result<String, LlmError> {
 }
 
 /// Post-process a raw title candidate: strip surrounding whitespace /
-/// quotes / backticks, take the first whitespace-delimited token, and
-/// truncate to `MAX_NAME_CHARS` chars. Defensive — the system prompt
-/// already asks for a single short word, but small models often ignore
-/// that constraint.
+/// quotes / backticks, skip common `Name:` / `Title:` preambles that
+/// small models like to emit, take the first whitespace-delimited
+/// token, and truncate to `MAX_NAME_CHARS` chars. Defensive — the
+/// system prompt already asks for a single short word, but small
+/// models often ignore that constraint.
 pub fn post_process(raw: &str) -> String {
     let trimmed = raw
         .trim()
         .trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '*' | '_' | '[' | ']' | '(' | ')'));
-    let first_token = trimmed.split_whitespace().next().unwrap_or("");
+    let after_preamble = strip_preamble(trimmed);
+    let first_token = after_preamble.split_whitespace().next().unwrap_or("");
     let stripped = first_token
         .trim_matches(|c: char| matches!(c, '"' | '\'' | '`' | '.' | ',' | ':' | ';' | '!' | '?'));
     stripped.chars().take(MAX_NAME_CHARS).collect()
+}
+
+/// Drop the leading `label:` in replies like `Name: deploy pipeline`
+/// or `title - refactor auth` so the first-token rule selects the real
+/// title instead of `name` / `title`. Only strips when the first
+/// whitespace-delimited token is one of the known preamble words
+/// followed by `:` or `-` (with optional whitespace).
+fn strip_preamble(text: &str) -> &str {
+    let mut chars = text.char_indices();
+    let Some((_, first)) = chars.next() else {
+        return text;
+    };
+    if !first.is_alphabetic() {
+        return text;
+    }
+    // Find end of the first alphabetic run.
+    let mut word_end = text.len();
+    for (idx, ch) in text.char_indices() {
+        if !ch.is_alphabetic() {
+            word_end = idx;
+            break;
+        }
+    }
+    let word = &text[..word_end];
+    const PREAMBLE_WORDS: &[&str] = &["name", "title", "session", "label"];
+    if !PREAMBLE_WORDS.iter().any(|w| word.eq_ignore_ascii_case(w)) {
+        return text;
+    }
+    let rest = text[word_end..].trim_start();
+    let Some(sep_rest) = rest.strip_prefix(':').or_else(|| rest.strip_prefix('-')) else {
+        return text;
+    };
+    sep_rest.trim_start()
 }
 
 #[cfg(test)]
@@ -138,7 +173,9 @@ mod tests {
     #[test]
     fn post_process_takes_first_whitespace_token() {
         assert_eq!(post_process("refactor auth module"), "refactor");
-        assert_eq!(post_process("\nname: deploy pipeline"), "name");
+        // When no known preamble prefix is present, the first token
+        // is the title.
+        assert_eq!(post_process("deploy pipeline"), "deploy");
     }
 
     #[test]
@@ -174,5 +211,28 @@ mod tests {
     fn post_process_empty_or_whitespace_returns_empty() {
         assert_eq!(post_process(""), "");
         assert_eq!(post_process("   \n"), "");
+    }
+
+    #[test]
+    fn post_process_strips_name_preamble() {
+        assert_eq!(post_process("Name: deploy pipeline"), "deploy");
+        assert_eq!(post_process("name: refactor"), "refactor");
+        assert_eq!(post_process("TITLE: docs rewrite"), "docs");
+        assert_eq!(post_process("title - build"), "build");
+        assert_eq!(post_process("Session: fix-bug"), "fix-bug");
+    }
+
+    #[test]
+    fn post_process_does_not_strip_when_word_is_not_a_preamble() {
+        // "refactor:" is not a known preamble → kept as-is, trailing
+        // colon stripped by the existing punctuation rule.
+        assert_eq!(post_process("refactor: auth"), "refactor");
+    }
+
+    #[test]
+    fn post_process_leaves_preamble_alone_without_separator() {
+        // Without `:` or `-`, the preamble word is the title itself.
+        assert_eq!(post_process("name"), "name");
+        assert_eq!(post_process("Title"), "Title");
     }
 }

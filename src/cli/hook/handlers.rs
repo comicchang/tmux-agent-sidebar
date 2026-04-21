@@ -146,7 +146,7 @@ pub(super) fn on_stop(
     clear_run_state(pane);
     mark_task_reset(pane);
     set_status(pane, "idle");
-    super::rename::maybe_spawn_rename(pane, ctx, last_message);
+    super::rename::maybe_spawn_rename(pane, ctx);
     let run_id = notification_run_id(pane);
     // Skip the generic Stop notification if an explicit TaskCompleted
     // stamp from the current run has already fired — otherwise Claude
