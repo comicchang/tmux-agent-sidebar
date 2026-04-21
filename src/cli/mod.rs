@@ -2,6 +2,7 @@ pub mod capture;
 mod hook;
 mod label;
 pub mod plugin_state;
+mod rename_session;
 pub(crate) mod setup;
 pub(crate) mod shared_html;
 mod spawn;
@@ -25,6 +26,7 @@ pub fn run(args: &[String]) -> Option<i32> {
         "set-status" => cmd_set_status(rest),
         "spawn" => spawn::cmd_spawn(rest),
         "capture" => capture::cmd_capture(rest),
+        "rename-session" => rename_session::cmd_rename_session(rest),
         "--version" | "version" => {
             println!("{}", crate::VERSION);
             0
