@@ -37,3 +37,4 @@ jobs:
           file: coverage.xml
           language: Rust
           label: code-coverage/cargo-llvm-cov
+          fail-on-error: false

@@ -18,6 +18,7 @@ fn github_coverage_action_uploads_cobertura_report() {
         "file: coverage.xml",
         "language: Rust",
         "label: code-coverage/cargo-llvm-cov",
+        "fail-on-error: false",
         "github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository",
     ] {
         assert!(
