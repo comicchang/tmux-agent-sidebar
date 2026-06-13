@@ -50,3 +50,23 @@ fn ci_checkout_steps_do_not_persist_credentials() {
         "each checkout step should disable persisted credentials"
     );
 }
+
+#[test]
+fn github_coverage_action_posts_pull_request_comment() {
+    let workflow = ci_workflow();
+
+    for expected in [
+        "issues: write",
+        "name: Write coverage summary",
+        "github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository",
+        "coverage_line_rate = float(root.attrib.get(\"line-rate\", \"0\"))",
+        "gh pr comment \"$PR_NUMBER\" --edit-last --create-if-none --body-file coverage-comment.md",
+        "GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+        "PR_NUMBER: ${{ github.event.pull_request.number }}",
+    ] {
+        assert!(
+            workflow.contains(expected),
+            "missing `{expected}` in {CI_WORKFLOW}"
+        );
+    }
+}

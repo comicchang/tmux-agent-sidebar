@@ -24,6 +24,7 @@ jobs:
     permissions:
       contents: read
       code-quality: write
+      issues: write
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6.0.3
         with:
@@ -41,3 +42,28 @@ jobs:
           language: Rust
           label: code-coverage/cargo-llvm-cov
           fail-on-error: false
+      - name: Write coverage summary
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          python <<'PY'
+          import xml.etree.ElementTree as ET
+
+          root = ET.parse("coverage.xml").getroot()
+          coverage_line_rate = float(root.attrib.get("line-rate", "0"))
+          covered_lines = int(root.attrib.get("lines-covered", "0"))
+          valid_lines = int(root.attrib.get("lines-valid", "0"))
+          coverage_percent = coverage_line_rate * 100
+
+          with open("coverage-comment.md", "w", encoding="utf-8") as file:
+              file.write("## Coverage summary\n\n")
+              file.write("| Metric | Value |\n")
+              file.write("| --- | ---: |\n")
+              file.write(f"| Line coverage | {coverage_percent:.2f}% |\n")
+              file.write(f"| Covered lines | {covered_lines} / {valid_lines} |\n")
+          PY
+      - name: Comment coverage summary
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        run: gh pr comment "$PR_NUMBER" --edit-last --create-if-none --body-file coverage-comment.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
