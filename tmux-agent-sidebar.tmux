@@ -10,7 +10,7 @@ detect_platform() {
     case "$arch" in
         x86_64|amd64)  arch="x86_64" ;;
         arm64|aarch64) arch="aarch64" ;;
-        *) echo "unknown" && return 1 ;;
+        *) echo "unknown" >&2 && return 1 ;;
     esac
     echo "${os}-${arch}"
 }
