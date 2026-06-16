@@ -12,8 +12,8 @@ function detect_platform() {
     case "$os" in
         darwin|linux) ;;
         *)
-            echo "Unsupported OS: $os"
-            exit 1
+            echo "Unsupported OS: $os" >&2
+            return 1
             ;;
     esac
 
@@ -21,8 +21,8 @@ function detect_platform() {
         x86_64|amd64)  arch="x86_64" ;;
         arm64|aarch64) arch="aarch64" ;;
         *)
-            echo "Unsupported architecture: $arch"
-            exit 1
+            echo "Unsupported architecture: $arch" >&2
+            return 1
             ;;
     esac
 
