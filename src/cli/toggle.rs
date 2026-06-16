@@ -746,7 +746,10 @@ mod tests {
         // no fallback, no-op because there is no valid "current window width"
         let output = "s1|@2|%2|35|sidebar\ns1|@3|%3|50|sidebar";
         let resizes = compute_sync_resizes("@1", "s1", output, ReferenceSource::CurrentWindow);
-        assert!(resizes.is_empty(), "current window has no sidebar, nothing to propagate");
+        assert!(
+            resizes.is_empty(),
+            "current window has no sidebar, nothing to propagate"
+        );
     }
 
     #[test]
