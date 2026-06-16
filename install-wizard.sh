@@ -4,29 +4,6 @@ set -euo pipefail
 
 PLUGIN_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BIN_DIR="$PLUGIN_DIR/bin"
-BINARY="$BIN_DIR/tmux-agent-sidebar"
-REPO="hiroppy/tmux-agent-sidebar"
-action="${1:-}"
-
-function finish {
-    local exit_code=$?
-    # When run without arguments (interactive menu), the menu spawns a
-    # new-window with the action — that child process handles the reload.
-    if [[ -z "$action" ]]; then
-        exit $exit_code
-    fi
-    if [[ $exit_code -eq 0 ]]; then
-        echo "Reloading tmux.conf"
-        tmux source ~/.tmux.conf
-        exit 0
-    else
-        echo "Something went wrong. Press any key to close this window."
-        read -n 1
-        exit 1
-    fi
-}
-trap finish EXIT
-
 function detect_platform() {
     local os arch
     os="$(uname -s | tr '[:upper:]' '[:lower:]')"
@@ -51,6 +28,36 @@ function detect_platform() {
 
     echo "${os}-${arch}"
 }
+
+# Use platform suffix to avoid binary conflicts during multi-device sync
+PLATFORM="$(detect_platform 2>/dev/null || echo "")"
+if [[ -n "$PLATFORM" ]]; then
+    BINARY="$BIN_DIR/tmux-agent-sidebar-${PLATFORM}"
+else
+    BINARY="$BIN_DIR/tmux-agent-sidebar"
+fi
+REPO="hiroppy/tmux-agent-sidebar"
+action="${1:-}"
+
+function finish {
+    local exit_code=$?
+    # When run without arguments (interactive menu), the menu spawns a
+    # new-window with the action — that child process handles the reload.
+    if [[ -z "$action" ]]; then
+        exit $exit_code
+    fi
+    if [[ $exit_code -eq 0 ]]; then
+        echo "Reloading tmux.conf"
+        tmux source ~/.tmux.conf
+        exit 0
+    else
+        echo "Something went wrong. Press any key to close this window."
+        read -n 1
+        exit 1
+    fi
+}
+trap finish EXIT
+
 
 function stop_running_instances() {
     # Kill any running instances so the next launch picks up the new binary.
