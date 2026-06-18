@@ -85,12 +85,17 @@ function download_binary() {
     local url="https://github.com/$REPO/releases/latest/download/$asset_name"
 
     echo "Downloading binary from $url"
-    if ! curl -fSL "$url" -o "$BINARY"; then
+    # Write to temp file, then atomic rename — avoids the reloader
+    # seeing a partially-written binary and re-triggering the wizard
+    local tmp="${BINARY}.tmp.$$"
+    if ! curl -fSL "$url" -o "$tmp"; then
+        rm -f "$tmp"
         echo ""
         echo "Download failed. No release found or network error."
         echo "Try 'Build from source' instead."
         return 1
     fi
+    mv "$tmp" "$BINARY"
     chmod +x "$BINARY"
 
     post_install_fixups
