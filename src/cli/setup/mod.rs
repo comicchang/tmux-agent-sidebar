@@ -9,11 +9,13 @@ use crate::adapter::HookRegistration;
 use crate::adapter::claude::ClaudeAdapter;
 use crate::adapter::codex::CodexAdapter;
 use crate::adapter::opencode::OpenCodeAdapter;
+use crate::adapter::pi::PiAdapter;
 
 #[allow(dead_code)]
 const _CLAUDE_TABLE_REACHABLE: &[HookRegistration] = ClaudeAdapter::HOOK_REGISTRATIONS;
 #[allow(dead_code)]
 const _CODEX_TABLE_REACHABLE: &[HookRegistration] = CodexAdapter::HOOK_REGISTRATIONS;
+const _PI_TABLE_REACHABLE: &[HookRegistration] = PiAdapter::HOOK_REGISTRATIONS;
 
 /// POSIX-quote a string for safe use as a single shell argument.
 ///
@@ -67,6 +69,7 @@ pub(crate) fn build_agent_snippet(agent: &str, hook_script: &str) -> Option<serd
         "claude" => ClaudeAdapter::HOOK_REGISTRATIONS,
         "codex" => CodexAdapter::HOOK_REGISTRATIONS,
         "opencode" => OpenCodeAdapter::HOOK_REGISTRATIONS,
+        "pi" => PiAdapter::HOOK_REGISTRATIONS,
         _ => return None,
     };
 
@@ -285,6 +288,12 @@ pub(crate) fn build_setup_output(hook_script: &str) -> serde_json::Value {
         CodexAdapter::HOOK_REGISTRATIONS,
         hook_script,
     );
+    let pi = build_agent_entry(
+        "pi",
+        "~/.pi/hooks.json",
+        PiAdapter::HOOK_REGISTRATIONS,
+        hook_script,
+    );
 
     serde_json::json!({
         "version": crate::VERSION,
@@ -292,6 +301,7 @@ pub(crate) fn build_setup_output(hook_script: &str) -> serde_json::Value {
         "agents": {
             "claude": claude,
             "codex": codex,
+            "pi": pi,
         },
     })
 }
@@ -403,6 +413,7 @@ pub(crate) fn config_path_for_agent(agent: &str) -> Option<PathBuf> {
     match agent {
         "claude" => Some(home.join(".claude/settings.json")),
         "codex" => Some(home.join(".codex/hooks.json")),
+        "pi" => Some(home.join(".pi/hooks.json")),
         _ => None,
     }
 }
@@ -433,14 +444,14 @@ fn run_setup(args: &[String], hook_script: &str) -> (i32, Option<serde_json::Val
             Some(snippet) => (0, Some(snippet)),
             None => {
                 eprintln!(
-                    "error: unknown agent '{}' (expected 'claude' or 'codex')",
+                    "error: unknown agent '{}' (expected 'claude', 'codex', 'opencode', or 'pi')",
                     args[0]
                 );
                 (2, None)
             }
         },
         _ => {
-            eprintln!("usage: tmux-agent-sidebar setup [claude|codex]");
+            eprintln!("usage: tmux-agent-sidebar setup [claude|codex|opencode|pi]");
             (2, None)
         }
     }

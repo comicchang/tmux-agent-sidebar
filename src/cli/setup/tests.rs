@@ -457,13 +457,13 @@ fn full_output_has_expected_top_level_keys() {
     let agents = v.get("agents").and_then(Value::as_object).unwrap();
     let mut keys: Vec<&str> = agents.keys().map(String::as_str).collect();
     keys.sort();
-    assert_eq!(keys, vec!["claude", "codex"]);
+    assert_eq!(keys, vec!["claude", "codex", "pi"]);
 }
 
 #[test]
 fn full_output_snippet_matches_single_agent_snippet() {
     let full = build_setup_output(FAKE_HOOK);
-    for agent in ["claude", "codex"] {
+    for agent in ["claude", "codex", "pi"] {
         let from_full = full
             .pointer(&format!("/agents/{}/snippet", agent))
             .unwrap_or_else(|| panic!("missing snippet for {}", agent));
@@ -906,6 +906,168 @@ const EXPECTED_FULL_OUTPUT: &str = r#"{
           ]
         }
       }
+    },
+    "pi": {
+      "config_path": "~/.pi/hooks.json",
+      "hooks": [
+        {
+          "command": "bash /fake/hook.sh pi session-start",
+          "event": "session-start",
+          "matcher": null,
+          "trigger": "session-start"
+        },
+        {
+          "command": "bash /fake/hook.sh pi session-end",
+          "event": "session-end",
+          "matcher": null,
+          "trigger": "session-end"
+        },
+        {
+          "command": "bash /fake/hook.sh pi user-prompt-submit",
+          "event": "user-prompt-submit",
+          "matcher": null,
+          "trigger": "user-prompt-submit"
+        },
+        {
+          "command": "bash /fake/hook.sh pi stop",
+          "event": "stop",
+          "matcher": null,
+          "trigger": "stop"
+        },
+        {
+          "command": "bash /fake/hook.sh pi stop-failure",
+          "event": "stop-failure",
+          "matcher": null,
+          "trigger": "stop-failure"
+        },
+        {
+          "command": "bash /fake/hook.sh pi notification",
+          "event": "notification",
+          "matcher": null,
+          "trigger": "notification"
+        },
+        {
+          "command": "bash /fake/hook.sh pi activity-log",
+          "event": "activity-log",
+          "matcher": null,
+          "trigger": "activity-log"
+        },
+        {
+          "command": "bash /fake/hook.sh pi subagent-start",
+          "event": "subagent-start",
+          "matcher": null,
+          "trigger": "subagent-start"
+        },
+        {
+          "command": "bash /fake/hook.sh pi subagent-stop",
+          "event": "subagent-stop",
+          "matcher": null,
+          "trigger": "subagent-stop"
+        }
+      ],
+      "snippet": {
+        "hooks": {
+          "activity-log": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi activity-log",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
+          "notification": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi notification",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
+          "session-end": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi session-end",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
+          "session-start": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi session-start",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
+          "stop": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi stop",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
+          "stop-failure": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi stop-failure",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
+          "subagent-start": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi subagent-start",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
+          "subagent-stop": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi subagent-stop",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ],
+          "user-prompt-submit": [
+            {
+              "hooks": [
+                {
+                  "command": "bash /fake/hook.sh pi user-prompt-submit",
+                  "type": "command"
+                }
+              ],
+              "matcher": ""
+            }
+          ]
+        }
+      }
     }
   },
   "hook_script": "/fake/hook.sh",
@@ -915,7 +1077,7 @@ const EXPECTED_FULL_OUTPUT: &str = r#"{
 #[test]
 fn full_output_normalized_command_matches_snippet_command() {
     let full = build_setup_output(FAKE_HOOK);
-    for agent in ["claude", "codex"] {
+    for agent in ["claude", "codex", "pi"] {
         let hooks = full
             .pointer(&format!("/agents/{}/hooks", agent))
             .and_then(Value::as_array)

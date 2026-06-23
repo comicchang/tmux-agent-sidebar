@@ -89,11 +89,10 @@ impl ProcessSnapshot {
     }
 
     pub(crate) fn tree_has_agent(&self, seed_pids: &[u32], agent: &AgentType) -> bool {
-        let agent_name = agent.as_str();
         self.descendants(seed_pids).into_iter().any(|pid| {
             self.info_by_pid
                 .get(&pid)
-                .map(|info| process_matches_agent(info, agent_name))
+                .map(|info| process_matches_agent(info, agent))
                 .unwrap_or(false)
         })
     }
@@ -120,15 +119,22 @@ pub(crate) fn command_basename(command: &str) -> &str {
         .unwrap_or(command)
 }
 
-pub(crate) fn process_matches_agent(info: &ProcessInfo, agent_name: &str) -> bool {
-    if command_basename(&info.comm) == agent_name {
-        return true;
+pub(crate) fn process_matches_agent(info: &ProcessInfo, agent: &AgentType) -> bool {
+    // Pi agent runs under the `omp` binary (a pi-agent fork), not `pi`.
+    let names: &[&str] = match agent {
+        AgentType::Pi => &["pi", "omp"],
+        other => &[other.as_str()],
+    };
+    for name in names {
+        if command_basename(&info.comm) == *name {
+            return true;
+        }
     }
-
     let Some(command) = info.args.split_whitespace().next() else {
         return false;
     };
-    command_basename(command.trim_matches('"')) == agent_name
+    let basename = command_basename(command.trim_matches('"'));
+    names.contains(&basename)
 }
 
 #[cfg(test)]
@@ -172,27 +178,45 @@ mod tests {
     }
 
     #[test]
+    fn process_matches_agent_handles_pi_omp_binary() {
+        assert!(process_matches_agent(
+            &ProcessInfo {
+                comm: "omp".to_string(),
+                args: "/opt/homebrew/bin/omp".to_string(),
+            },
+            &AgentType::Pi,
+        ));
+        assert!(!process_matches_agent(
+            &ProcessInfo {
+                comm: "not-omp".to_string(),
+                args: "/usr/local/bin/not-omp".to_string(),
+            },
+            &AgentType::Pi,
+        ));
+    }
+
+    #[test]
     fn process_matches_agent_requires_command_name_match() {
         assert!(process_matches_agent(
             &ProcessInfo {
                 comm: "claude".to_string(),
                 args: "/opt/homebrew/bin/claude --flag".to_string(),
             },
-            "claude",
+            &AgentType::Claude,
         ));
         assert!(process_matches_agent(
             &ProcessInfo {
                 comm: "node".to_string(),
                 args: "/usr/local/bin/opencode".to_string(),
             },
-            "opencode",
+            &AgentType::OpenCode,
         ));
         assert!(!process_matches_agent(
             &ProcessInfo {
                 comm: "not-opencode".to_string(),
                 args: "/usr/local/bin/not-opencode".to_string(),
             },
-            "opencode",
+            &AgentType::OpenCode,
         ));
     }
 }
