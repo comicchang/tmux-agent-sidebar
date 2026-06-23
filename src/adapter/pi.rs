@@ -19,11 +19,7 @@ fn flex_str<'a>(val: &'a Value, primary: &str, fallback: &str) -> &'a str {
 
 fn flex_opt(val: &Value, primary: &str, fallback: &str) -> Option<String> {
     let v = flex_str(val, primary, fallback);
-    if v.is_empty() {
-        None
-    } else {
-        Some(v.into())
-    }
+    if v.is_empty() { None } else { Some(v.into()) }
 }
 
 fn flex_value(val: &Value, primary: &str, fallback: &str) -> Value {
@@ -550,16 +546,20 @@ mod tests {
 
     #[test]
     fn subagent_start_not_supported() {
-        assert!(PiAdapter
-            .parse("subagent-start", &json!({"agent_type": "X"}))
-            .is_none());
+        assert!(
+            PiAdapter
+                .parse("subagent-start", &json!({"agent_type": "X"}))
+                .is_none()
+        );
     }
 
     #[test]
     fn subagent_stop_not_supported() {
-        assert!(PiAdapter
-            .parse("subagent-stop", &json!({"agent_type": "X"}))
-            .is_none());
+        assert!(
+            PiAdapter
+                .parse("subagent-stop", &json!({"agent_type": "X"}))
+                .is_none()
+        );
     }
 
     #[test]

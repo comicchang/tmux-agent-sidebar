@@ -277,7 +277,10 @@ fn parse_pane_fields_with_processes(
     // `AgentType::from_label` check above once `@pane_agent` has been
     // cleared. Claude is excluded because its SessionEnd hook drives
     // cleanup instead.
-    if matches!(agent, AgentType::Codex | AgentType::OpenCode | AgentType::Pi) && is_shell_command(current_command)
+    if matches!(
+        agent,
+        AgentType::Codex | AgentType::OpenCode | AgentType::Pi
+    ) && is_shell_command(current_command)
     {
         let agent_still_alive = pane_pid
             .and_then(|pid| {
@@ -445,8 +448,12 @@ fn pane_output_needs_process_snapshot(all_panes_output: &str) -> bool {
             return false;
         }
         let pane_fields = &parts[session_line_field::PANE_LINE_OFFSET..];
-        AgentType::from_label(&pane_fields[pane_line_field::AGENT])
-            .is_some_and(|agent| matches!(agent, AgentType::Codex | AgentType::OpenCode | AgentType::Pi))
+        AgentType::from_label(&pane_fields[pane_line_field::AGENT]).is_some_and(|agent| {
+            matches!(
+                agent,
+                AgentType::Codex | AgentType::OpenCode | AgentType::Pi
+            )
+        })
     })
 }
 

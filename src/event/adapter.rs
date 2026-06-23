@@ -155,11 +155,7 @@ mod tests {
         let adapter = resolve_adapter("pi").unwrap();
         assert!(adapter.parse("session-start", &json!({})).is_some());
         assert!(adapter.parse("session-end", &json!({})).is_some());
-        assert!(
-            adapter
-                .parse("user-prompt-submit", &json!({}))
-                .is_some()
-        );
+        assert!(adapter.parse("user-prompt-submit", &json!({})).is_some());
         assert!(adapter.parse("stop", &json!({})).is_some());
         assert!(adapter.parse("stop-failure", &json!({})).is_some());
         assert!(adapter.parse("notification", &json!({})).is_some());
@@ -173,11 +169,7 @@ mod tests {
     #[test]
     fn pi_ignores_claude_only_events() {
         let adapter = resolve_adapter("pi").unwrap();
-        assert!(
-            adapter
-                .parse("permission-denied", &json!({}))
-                .is_none()
-        );
+        assert!(adapter.parse("permission-denied", &json!({})).is_none());
         assert!(
             adapter
                 .parse("subagent-start", &json!({"agent_type": "X"}))
