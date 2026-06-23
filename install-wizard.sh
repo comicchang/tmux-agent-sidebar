@@ -36,7 +36,7 @@ if [[ -n "$PLATFORM" ]]; then
 else
     BINARY="$BIN_DIR/tmux-agent-sidebar"
 fi
-REPO="hiroppy/tmux-agent-sidebar"
+REPO="comicchang/tmux-agent-sidebar"
 action="${1:-}"
 
 function finish {
