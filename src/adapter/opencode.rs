@@ -1,10 +1,10 @@
 use serde_json::{Map, Value};
 
-use crate::event::{AgentEvent, EventAdapter};
+use crate::event::{AgentEvent, AgentEventKind, EventAdapter};
 use crate::tmux::OPENCODE_AGENT;
 use crate::tool_name::CanonicalTool;
 
-use super::{json_str, json_value_or_null, optional_str};
+use super::{HookRegistration, json_str, json_value_or_null, optional_str};
 
 pub struct OpenCodeAdapter;
 
@@ -58,6 +58,41 @@ fn copy_keys(map: &mut Map<String, Value>, pairs: &[(&str, &str)]) {
     }
 }
 
+
+impl OpenCodeAdapter {
+    pub const HOOK_REGISTRATIONS: &'static [HookRegistration] = &[
+        HookRegistration {
+            trigger: "SessionStart",
+            matcher: None,
+            kind: AgentEventKind::SessionStart,
+        },
+        HookRegistration {
+            trigger: "UserPromptSubmit",
+            matcher: None,
+            kind: AgentEventKind::UserPromptSubmit,
+        },
+        HookRegistration {
+            trigger: "Notification",
+            matcher: None,
+            kind: AgentEventKind::Notification,
+        },
+        HookRegistration {
+            trigger: "Stop",
+            matcher: None,
+            kind: AgentEventKind::Stop,
+        },
+        HookRegistration {
+            trigger: "StopFailure",
+            matcher: None,
+            kind: AgentEventKind::StopFailure,
+        },
+        HookRegistration {
+            trigger: "PostToolUse",
+            matcher: None,
+            kind: AgentEventKind::ActivityLog,
+        },
+    ];
+}
 impl EventAdapter for OpenCodeAdapter {
     fn parse(&self, event_name: &str, input: &Value) -> Option<AgentEvent> {
         match event_name {

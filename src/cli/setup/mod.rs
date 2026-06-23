@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use crate::adapter::HookRegistration;
 use crate::adapter::claude::ClaudeAdapter;
 use crate::adapter::codex::CodexAdapter;
+use crate::adapter::opencode::OpenCodeAdapter;
 
 #[allow(dead_code)]
 const _CLAUDE_TABLE_REACHABLE: &[HookRegistration] = ClaudeAdapter::HOOK_REGISTRATIONS;
@@ -65,6 +66,7 @@ pub(crate) fn build_agent_snippet(agent: &str, hook_script: &str) -> Option<serd
     let table: &[HookRegistration] = match agent {
         "claude" => ClaudeAdapter::HOOK_REGISTRATIONS,
         "codex" => CodexAdapter::HOOK_REGISTRATIONS,
+        "opencode" => OpenCodeAdapter::HOOK_REGISTRATIONS,
         _ => return None,
     };
 

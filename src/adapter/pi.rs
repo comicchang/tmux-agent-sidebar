@@ -1,9 +1,9 @@
-use serde_json::Value;
+use serde_json::{json, Value};
 
 use crate::event::{AgentEvent, AgentEventKind, EventAdapter};
 use crate::tmux::PI_AGENT;
 
-use super::{HookRegistration, json_str, json_value_or_null};
+use super::{HookRegistration, json_str, json_value_or_null, optional_str};
 
 /// Read a field from JSON, trying `camelCase` then `snake_case` keys.
 /// This lets the drift test (`assert_table_drift_free`, which sends
@@ -88,6 +88,16 @@ impl PiAdapter {
             matcher: None,
             kind: AgentEventKind::ActivityLog,
         },
+        HookRegistration {
+            trigger: "subagent-start",
+            matcher: None,
+            kind: AgentEventKind::SubagentStart,
+        },
+        HookRegistration {
+            trigger: "subagent-stop",
+            matcher: None,
+            kind: AgentEventKind::SubagentStop,
+        },
     ];
 }
 
@@ -154,6 +164,40 @@ impl EventAdapter for PiAdapter {
                     tool_name,
                     tool_input: flex_value(input, "toolArgs", "tool_input"),
                     tool_response: flex_value(input, "result", "tool_response"),
+                })
+            }
+            "subagent-start" => Some(AgentEvent::SubagentStart {
+                agent_type: json_str(input, "agent").into(),
+                agent_id: optional_str(input, "id"),
+            }),
+            "subagent-status" => {
+                let raw = flex_str(input, "toolName", "tool_name");
+                if raw.is_empty() {
+                    return None;
+                }
+                let tool_name = normalize_tool_name(raw);
+                let tool_input = json!({
+                    "active_scope": flex_value(input, "activeScope", "active_scope"),
+                    "latest_event": flex_value(input, "latestEvent", "latest_event"),
+                });
+                Some(AgentEvent::ActivityLog {
+                    tool_name,
+                    tool_input,
+                    tool_response: Value::Null,
+                })
+            }
+            "subagent-stop" => {
+                let status = flex_str(input, "status", "status");
+                let last_message = if status == "failed" {
+                    json_str(input, "error").into()
+                } else {
+                    status.into()
+                };
+                Some(AgentEvent::SubagentStop {
+                    agent_type: json_str(input, "agent").into(),
+                    agent_id: optional_str(input, "id"),
+                    last_message,
+                    transcript_path: flex_str(input, "sessionFile", "session_file").into(),
                 })
             }
             _ => None,
@@ -544,24 +588,200 @@ mod tests {
         assert!(PiAdapter.parse("cwd-changed", &json!({})).is_none());
     }
 
+    // ─── subagent events ────────────────────────────────────────────
+
     #[test]
-    fn subagent_start_not_supported() {
-        assert!(
-            PiAdapter
-                .parse("subagent-start", &json!({"agent_type": "X"}))
-                .is_none()
-        );
+    fn subagent_start() {
+        let adapter = PiAdapter;
+        let input = json!({"agent": "Explore", "id": "agent-1"});
+        let event = adapter.parse("subagent-start", &input).unwrap();
+        match event {
+            AgentEvent::SubagentStart {
+                agent_type,
+                agent_id,
+            } => {
+                assert_eq!(agent_type, "Explore");
+                assert_eq!(agent_id, Some("agent-1".into()));
+            }
+            other => panic!("expected SubagentStart, got {:?}", other),
+        }
     }
 
     #[test]
-    fn subagent_stop_not_supported() {
-        assert!(
-            PiAdapter
-                .parse("subagent-stop", &json!({"agent_type": "X"}))
-                .is_none()
-        );
+    fn subagent_start_missing_fields_default_empty() {
+        let adapter = PiAdapter;
+        let event = adapter.parse("subagent-start", &json!({})).unwrap();
+        match event {
+            AgentEvent::SubagentStart {
+                agent_type,
+                agent_id,
+            } => {
+                assert_eq!(agent_type, "");
+                assert_eq!(agent_id, None);
+            }
+            other => panic!("expected SubagentStart, got {:?}", other),
+        }
     }
 
+    #[test]
+    fn subagent_stop_done() {
+        let adapter = PiAdapter;
+        let input = json!({
+            "agent": "Explore",
+            "id": "agent-1",
+            "status": "done",
+            "sessionFile": "/tmp/session.json",
+            "elapsedMs": 1234
+        });
+        let event = adapter.parse("subagent-stop", &input).unwrap();
+        match event {
+            AgentEvent::SubagentStop {
+                agent_type,
+                agent_id,
+                last_message,
+                transcript_path,
+            } => {
+                assert_eq!(agent_type, "Explore");
+                assert_eq!(agent_id, Some("agent-1".into()));
+                assert_eq!(last_message, "done");
+                assert_eq!(transcript_path, "/tmp/session.json");
+            }
+            other => panic!("expected SubagentStop, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn subagent_stop_failed() {
+        let adapter = PiAdapter;
+        let input = json!({
+            "agent": "Explore",
+            "id": "agent-2",
+            "status": "failed",
+            "error": "timeout",
+            "sessionFile": "/tmp/session.json"
+        });
+        let event = adapter.parse("subagent-stop", &input).unwrap();
+        match event {
+            AgentEvent::SubagentStop {
+                agent_type,
+                agent_id,
+                last_message,
+                transcript_path,
+            } => {
+                assert_eq!(agent_type, "Explore");
+                assert_eq!(agent_id, Some("agent-2".into()));
+                assert_eq!(last_message, "timeout");
+                assert_eq!(transcript_path, "/tmp/session.json");
+            }
+            other => panic!("expected SubagentStop, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn subagent_stop_cancelled() {
+        let adapter = PiAdapter;
+        let input = json!({
+            "agent": "Explore",
+            "id": "agent-3",
+            "status": "cancelled",
+            "sessionFile": "/tmp/session.json"
+        });
+        let event = adapter.parse("subagent-stop", &input).unwrap();
+        match event {
+            AgentEvent::SubagentStop {
+                agent_type,
+                agent_id,
+                last_message,
+                transcript_path,
+            } => {
+                assert_eq!(agent_type, "Explore");
+                assert_eq!(agent_id, Some("agent-3".into()));
+                assert_eq!(last_message, "cancelled");
+                assert_eq!(transcript_path, "/tmp/session.json");
+            }
+            other => panic!("expected SubagentStop, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn subagent_stop_missing_fields_default_empty() {
+        let adapter = PiAdapter;
+        let input = json!({"status": "done"});
+        let event = adapter.parse("subagent-stop", &input).unwrap();
+        match event {
+            AgentEvent::SubagentStop {
+                agent_type,
+                agent_id,
+                last_message,
+                transcript_path,
+            } => {
+                assert_eq!(agent_type, "");
+                assert_eq!(agent_id, None);
+                assert_eq!(last_message, "done");
+                assert_eq!(transcript_path, "");
+            }
+            other => panic!("expected SubagentStop, got {:?}", other),
+        }
+    }
+
+
+    #[test]
+    fn subagent_status_with_tool_name() {
+        let adapter = PiAdapter;
+        let input = json!({
+            "toolName": "readFile",
+            "activeScope": "read",
+            "latestEvent": "reading src/main.rs"
+        });
+        let event = adapter.parse("subagent-status", &input).unwrap();
+        match event {
+            AgentEvent::ActivityLog {
+                tool_name,
+                tool_input,
+                tool_response,
+            } => {
+                assert_eq!(tool_name, "Read");
+                assert_eq!(tool_input["active_scope"], "read");
+                assert_eq!(tool_input["latest_event"], "reading src/main.rs");
+                assert_eq!(tool_response, Value::Null);
+            }
+            other => panic!("expected ActivityLog, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn subagent_status_without_tool_name_returns_none() {
+        let adapter = PiAdapter;
+        let input = json!({
+            "activeScope": "read",
+            "latestEvent": "reading src/main.rs"
+        });
+        assert!(adapter.parse("subagent-status", &input).is_none());
+    }
+
+    #[test]
+    fn subagent_status_snake_case_tool_name() {
+        let adapter = PiAdapter;
+        let input = json!({
+            "tool_name": "editFile",
+            "active_scope": "edit",
+            "latest_event": "editing src/lib.rs"
+        });
+        let event = adapter.parse("subagent-status", &input).unwrap();
+        match event {
+            AgentEvent::ActivityLog {
+                tool_name,
+                tool_input,
+                tool_response,
+            } => {
+                assert_eq!(tool_name, "Edit");
+                assert_eq!(tool_input["active_scope"], "edit");
+                assert_eq!(tool_input["latest_event"], "editing src/lib.rs");
+                assert_eq!(tool_response, Value::Null);
+            }
+            other => panic!("expected ActivityLog, got {:?}", other),
+        }
+    }
     #[test]
     fn task_created_not_supported() {
         assert!(PiAdapter.parse("task-created", &json!({})).is_none());
