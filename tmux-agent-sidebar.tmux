@@ -39,8 +39,8 @@ fi
 if [[ -z "$SIDEBAR_BINARY" && -x "$PLUGIN_DIR/target/release/tmux-agent-sidebar" ]]; then
     INSTALLED_VERSION="$(try_binary "$PLUGIN_DIR/target/release/tmux-agent-sidebar")" && SIDEBAR_BINARY="$PLUGIN_DIR/target/release/tmux-agent-sidebar"
 fi
-if [[ -z "$SIDEBAR_BINARY" ]] && command -v "tmux-agent-sidebar" &>/dev/null; then
-    INSTALLED_VERSION="$(try_binary "tmux-agent-sidebar")" && SIDEBAR_BINARY="tmux-agent-sidebar"
+if [[ -z "$SIDEBAR_BINARY" ]] && cmd_path="$(command -v tmux-agent-sidebar 2>/dev/null)" && [[ -n "$cmd_path" ]]; then
+    INSTALLED_VERSION="$(try_binary "$cmd_path")" && SIDEBAR_BINARY="$cmd_path"
 fi
 if [[ -z "$SIDEBAR_BINARY" ]] && command -v brew &>/dev/null && [[ -x "$(brew --prefix 2>/dev/null)/bin/tmux-agent-sidebar" ]]; then
     INSTALLED_VERSION="$(try_binary "$(brew --prefix)/bin/tmux-agent-sidebar")" && SIDEBAR_BINARY="$(brew --prefix)/bin/tmux-agent-sidebar"
