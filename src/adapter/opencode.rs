@@ -58,7 +58,6 @@ fn copy_keys(map: &mut Map<String, Value>, pairs: &[(&str, &str)]) {
     }
 }
 
-
 impl OpenCodeAdapter {
     pub const HOOK_REGISTRATIONS: &'static [HookRegistration] = &[
         HookRegistration {

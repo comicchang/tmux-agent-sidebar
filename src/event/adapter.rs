@@ -164,13 +164,21 @@ mod tests {
                 .parse("activity-log", &json!({"tool_name": "Read"}))
                 .is_some()
         );
-        assert!(adapter.parse("subagent-start", &json!({"agent": "X"})).is_some());
+        assert!(
+            adapter
+                .parse("subagent-start", &json!({"agent": "X"}))
+                .is_some()
+        );
         assert!(
             adapter
                 .parse("subagent-status", &json!({"tool_name": "Read"}))
                 .is_some()
         );
-        assert!(adapter.parse("subagent-stop", &json!({"agent": "X"})).is_some());
+        assert!(
+            adapter
+                .parse("subagent-stop", &json!({"agent": "X"}))
+                .is_some()
+        );
     }
 
     #[test]

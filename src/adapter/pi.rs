@@ -1,4 +1,4 @@
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 use crate::event::{AgentEvent, AgentEventKind, EventAdapter};
 use crate::tmux::PI_AGENT;
@@ -723,7 +723,6 @@ mod tests {
             other => panic!("expected SubagentStop, got {:?}", other),
         }
     }
-
 
     #[test]
     fn subagent_status_with_tool_name() {
