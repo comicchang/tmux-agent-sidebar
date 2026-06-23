@@ -1,6 +1,7 @@
 pub const CLAUDE_AGENT: &str = "claude";
 pub const CODEX_AGENT: &str = "codex";
 pub const OPENCODE_AGENT: &str = "opencode";
+pub const PI_AGENT: &str = "pi";
 
 #[derive(Debug, Clone)]
 pub struct PaneInfo {
@@ -92,6 +93,7 @@ pub enum AgentType {
     Claude,
     Codex,
     OpenCode,
+    Pi,
     #[allow(dead_code)]
     Unknown,
 }
@@ -113,21 +115,21 @@ pub struct SessionInfo {
 
 impl AgentType {
     /// Parse the agent label set by hooks. Returns `None` for unknown
-    /// values so callers can skip non-agent panes.
     pub fn from_label(s: &str) -> Option<Self> {
         match s {
             CLAUDE_AGENT => Some(Self::Claude),
             CODEX_AGENT => Some(Self::Codex),
             OPENCODE_AGENT => Some(Self::OpenCode),
+            PI_AGENT => Some(Self::Pi),
             _ => None,
         }
     }
-
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Claude => CLAUDE_AGENT,
             Self::Codex => CODEX_AGENT,
             Self::OpenCode => OPENCODE_AGENT,
+            Self::Pi => PI_AGENT,
             Self::Unknown => "unknown",
         }
     }
