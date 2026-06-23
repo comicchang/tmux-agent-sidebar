@@ -164,22 +164,20 @@ mod tests {
                 .parse("activity-log", &json!({"tool_name": "Read"}))
                 .is_some()
         );
+        assert!(adapter.parse("subagent-start", &json!({"agent": "X"})).is_some());
+        assert!(
+            adapter
+                .parse("subagent-status", &json!({"tool_name": "Read"}))
+                .is_some()
+        );
+        assert!(adapter.parse("subagent-stop", &json!({"agent": "X"})).is_some());
     }
 
     #[test]
     fn pi_ignores_claude_only_events() {
         let adapter = resolve_adapter("pi").unwrap();
         assert!(adapter.parse("permission-denied", &json!({})).is_none());
-        assert!(
-            adapter
-                .parse("subagent-start", &json!({"agent_type": "X"}))
-                .is_none()
-        );
-        assert!(
-            adapter
-                .parse("subagent-stop", &json!({"agent_type": "X"}))
-                .is_none()
-        );
+        assert!(adapter.parse("cwd-changed", &json!({})).is_none());
         assert!(adapter.parse("task-created", &json!({})).is_none());
         assert!(adapter.parse("task-completed", &json!({})).is_none());
         assert!(adapter.parse("teammate-idle", &json!({})).is_none());
