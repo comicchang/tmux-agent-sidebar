@@ -35,7 +35,7 @@ if [[ -z "$SIDEBAR_BINARY" ]]; then
     exit 0
 fi
 
-INSTALLED_VERSION="$("$SIDEBAR_BINARY" version 2>/dev/null)"
+INSTALLED_VERSION="$("$SIDEBAR_BINARY" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
 EXPECTED_VERSION="$(sed -n 's/^version *= *"\(.*\)"/\1/p' "$PLUGIN_DIR/Cargo.toml")"
 
 if [[ -n "$EXPECTED_VERSION" && "$INSTALLED_VERSION" != "$EXPECTED_VERSION" ]]; then
