@@ -17,29 +17,37 @@ detect_platform() {
 
 PLATFORM="$(detect_platform 2>/dev/null || echo "")"
 
-# Prefer arch-suffixed binary, fallback to unsuffixed, dev build, or PATH
+# 按优先级尝试各个路径，找到后验证二进制可用
+try_binary() {
+    local bin="$1"
+    local ver
+    ver="$("$bin" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
+    if [[ -n "$ver" ]]; then
+        echo "$ver"
+        return 0
+    fi
+    return 1
+}
+
+INSTALLED_VERSION=""
 if [[ -n "$PLATFORM" && -x "$PLUGIN_DIR/bin/tmux-agent-sidebar-${PLATFORM}" ]]; then
-    SIDEBAR_BINARY="$PLUGIN_DIR/bin/tmux-agent-sidebar-${PLATFORM}"
-elif [[ -x "$PLUGIN_DIR/bin/tmux-agent-sidebar" ]]; then
-    SIDEBAR_BINARY="$PLUGIN_DIR/bin/tmux-agent-sidebar"
-elif [[ -x "$PLUGIN_DIR/target/release/tmux-agent-sidebar" ]]; then
-    SIDEBAR_BINARY="$PLUGIN_DIR/target/release/tmux-agent-sidebar"
-elif command -v "tmux-agent-sidebar" &>/dev/null; then
-    SIDEBAR_BINARY="tmux-agent-sidebar"
-elif command -v brew &>/dev/null && [[ -x "$(brew --prefix 2>/dev/null)/bin/tmux-agent-sidebar" ]]; then
-    SIDEBAR_BINARY="$(brew --prefix)/bin/tmux-agent-sidebar"
+    INSTALLED_VERSION="$(try_binary "$PLUGIN_DIR/bin/tmux-agent-sidebar-${PLATFORM}")" && SIDEBAR_BINARY="$PLUGIN_DIR/bin/tmux-agent-sidebar-${PLATFORM}"
+fi
+if [[ -z "$SIDEBAR_BINARY" && -x "$PLUGIN_DIR/bin/tmux-agent-sidebar" ]]; then
+    INSTALLED_VERSION="$(try_binary "$PLUGIN_DIR/bin/tmux-agent-sidebar")" && SIDEBAR_BINARY="$PLUGIN_DIR/bin/tmux-agent-sidebar"
+fi
+if [[ -z "$SIDEBAR_BINARY" && -x "$PLUGIN_DIR/target/release/tmux-agent-sidebar" ]]; then
+    INSTALLED_VERSION="$(try_binary "$PLUGIN_DIR/target/release/tmux-agent-sidebar")" && SIDEBAR_BINARY="$PLUGIN_DIR/target/release/tmux-agent-sidebar"
+fi
+if [[ -z "$SIDEBAR_BINARY" ]] && command -v "tmux-agent-sidebar" &>/dev/null; then
+    INSTALLED_VERSION="$(try_binary "tmux-agent-sidebar")" && SIDEBAR_BINARY="tmux-agent-sidebar"
+fi
+if [[ -z "$SIDEBAR_BINARY" ]] && command -v brew &>/dev/null && [[ -x "$(brew --prefix 2>/dev/null)/bin/tmux-agent-sidebar" ]]; then
+    INSTALLED_VERSION="$(try_binary "$(brew --prefix)/bin/tmux-agent-sidebar")" && SIDEBAR_BINARY="$(brew --prefix)/bin/tmux-agent-sidebar"
 fi
 
 if [[ -z "$SIDEBAR_BINARY" ]]; then
     tmux run-shell -b "bash '$PLUGIN_DIR/install-wizard.sh'"
-    exit 0
-fi
-
-INSTALLED_VERSION="$("$SIDEBAR_BINARY" version 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"
-EXPECTED_VERSION="$(sed -n 's/^version *= *"\(.*\)"/\1/p' "$PLUGIN_DIR/Cargo.toml")"
-
-if [[ -n "$EXPECTED_VERSION" && "$INSTALLED_VERSION" != "$EXPECTED_VERSION" ]]; then
-    tmux run-shell -b "SIDEBAR_UPDATE=1 bash '$PLUGIN_DIR/install-wizard.sh'"
     exit 0
 fi
 
