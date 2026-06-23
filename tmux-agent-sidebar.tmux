@@ -26,6 +26,8 @@ elif [[ -x "$PLUGIN_DIR/target/release/tmux-agent-sidebar" ]]; then
     SIDEBAR_BINARY="$PLUGIN_DIR/target/release/tmux-agent-sidebar"
 elif command -v "tmux-agent-sidebar" &>/dev/null; then
     SIDEBAR_BINARY="tmux-agent-sidebar"
+elif command -v brew &>/dev/null && [[ -x "$(brew --prefix 2>/dev/null)/bin/tmux-agent-sidebar" ]]; then
+    SIDEBAR_BINARY="$(brew --prefix)/bin/tmux-agent-sidebar"
 fi
 
 if [[ -z "$SIDEBAR_BINARY" ]]; then
