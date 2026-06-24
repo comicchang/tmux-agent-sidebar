@@ -37,9 +37,22 @@ jobs:
         if: ${{ !matrix.use_zigbuild }}
         run: rustup target add ${{ matrix.target }}
 
+      # Ref: oh-my-pi CI for glibc-pinned Linux builds
+      - name: Setup zig
+        if: ${{ matrix.use_zigbuild }}
+        uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+
       - name: Install cargo-zigbuild
         if: ${{ matrix.use_zigbuild }}
-        run: cargo install cargo-zigbuild
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-zigbuild
+
+      - name: Install rust-src (required by zigbuild)
+        if: ${{ matrix.use_zigbuild }}
+        run: rustup component add rust-src
 
       - name: Build (zigbuild, glibc 2.17+)
         if: ${{ matrix.use_zigbuild }}
@@ -51,7 +64,9 @@ jobs:
 
       - name: Rename binary
         run: |
+          # zigbuild strips the glibc suffix from the output directory
           TARGET_DIR="${{ matrix.target }}"
+          TARGET_DIR="${TARGET_DIR%%.*}"
           cp target/$TARGET_DIR/release/tmux-agent-sidebar ${{ matrix.asset }}
 
       - name: Upload artifact
