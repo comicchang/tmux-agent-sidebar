@@ -20,10 +20,10 @@ jobs:
             os: macos-latest
             asset: tmux-agent-sidebar-darwin-x86_64
           - target: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-20.04
             asset: tmux-agent-sidebar-linux-x86_64
           - target: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-20.04
             asset: tmux-agent-sidebar-linux-aarch64
 
     runs-on: ${{ matrix.os }}
