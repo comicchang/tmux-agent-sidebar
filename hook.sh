@@ -27,12 +27,18 @@ PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 # never contains the binary, so hop over to the tmux plugin directory
 # where TPM placed it.
 TPM_DIR="$HOME/.tmux/plugins/tmux-agent-sidebar"
+# Platform-specific binary name: <binary>-<os>-<arch>
+PLATFORM_BIN="tmux-agent-sidebar-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
 if [ -x "$PLUGIN_DIR/bin/tmux-agent-sidebar" ]; then
   BIN="$PLUGIN_DIR/bin/tmux-agent-sidebar"
+elif [ -x "$PLUGIN_DIR/bin/$PLATFORM_BIN" ]; then
+  BIN="$PLUGIN_DIR/bin/$PLATFORM_BIN"
 elif [ -x "$PLUGIN_DIR/target/release/tmux-agent-sidebar" ]; then
   BIN="$PLUGIN_DIR/target/release/tmux-agent-sidebar"
 elif [ -x "$TPM_DIR/bin/tmux-agent-sidebar" ]; then
   BIN="$TPM_DIR/bin/tmux-agent-sidebar"
+elif [ -x "$TPM_DIR/bin/$PLATFORM_BIN" ]; then
+  BIN="$TPM_DIR/bin/$PLATFORM_BIN"
 elif [ -x "$TPM_DIR/target/release/tmux-agent-sidebar" ]; then
   BIN="$TPM_DIR/target/release/tmux-agent-sidebar"
 elif command -v tmux-agent-sidebar &>/dev/null; then
