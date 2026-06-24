@@ -28,7 +28,9 @@ PLUGIN_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 # where TPM placed it.
 TPM_DIR="$HOME/.tmux/plugins/tmux-agent-sidebar"
 # Platform-specific binary name: <binary>-<os>-<arch>
-PLATFORM_BIN="tmux-agent-sidebar-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m)"
+# Map macOS arm64 → aarch64 to match Rust target triple naming.
+_arch="$(uname -m)"; [ "$_arch" = "arm64" ] && _arch="aarch64"
+PLATFORM_BIN="tmux-agent-sidebar-$(uname -s | tr '[:upper:]' '[:lower:]')-$_arch"
 if [ -x "$PLUGIN_DIR/bin/tmux-agent-sidebar" ]; then
   BIN="$PLUGIN_DIR/bin/tmux-agent-sidebar"
 elif [ -x "$PLUGIN_DIR/bin/$PLATFORM_BIN" ]; then
