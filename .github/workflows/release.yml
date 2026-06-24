@@ -33,9 +33,15 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Install Rust toolchain
+      - name: Install Rust target
         if: ${{ !matrix.use_zigbuild }}
         run: rustup target add ${{ matrix.target }}
+
+      - name: Install Rust target spec (for zigbuild cross-compile)
+        if: ${{ matrix.use_zigbuild }}
+        run: |
+          TARGET="${{ matrix.target }}"
+          rustup target add "${TARGET%%.*}"
 
       # Ref: oh-my-pi CI for glibc-pinned Linux builds
       - name: Setup zig
