@@ -39,6 +39,10 @@ jobs:
             rustup target add ${{ matrix.target }}
           fi
 
+      - name: Install zig
+        if: matrix.zigbuild
+        run: sudo snap install zig --classic --edge
+
       - name: Install zigbuild
         if: matrix.zigbuild
         run: cargo install cargo-zigbuild
