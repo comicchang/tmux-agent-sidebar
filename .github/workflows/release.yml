@@ -22,11 +22,9 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             asset: tmux-agent-sidebar-linux-x86_64
-            zigbuild: x86_64-unknown-linux-gnu.2.31
           - target: aarch64-unknown-linux-gnu
             os: ubuntu-latest
             asset: tmux-agent-sidebar-linux-aarch64
-            zigbuild: aarch64-unknown-linux-gnu.2.31
 
     runs-on: ${{ matrix.os }}
 
@@ -35,29 +33,17 @@ jobs:
 
       - name: Install Rust toolchain
         run: |
-          if [[ "${{ matrix.target }}" == *apple* ]]; then
-            rustup target add ${{ matrix.target }}
-          fi
+          rustup target add ${{ matrix.target }}
 
-      - name: Install rust-src (required by zigbuild)
-        if: matrix.zigbuild
-        run: rustup component add rust-src
-
-      - name: Install zig
-        if: matrix.zigbuild
-        run: sudo snap install zig --classic --edge
-
-      - name: Install zigbuild
-        if: matrix.zigbuild
-        run: cargo install cargo-zigbuild
+      - name: Install cross-compilation tools
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+          echo "CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc" >> $GITHUB_ENV
 
       - name: Build
-        if: ${{ !matrix.zigbuild }}
         run: cargo build --release --target ${{ matrix.target }}
-
-      - name: Build (zigbuild)
-        if: matrix.zigbuild
-        run: cargo zigbuild --release --target ${{ matrix.zigbuild }}
 
       - name: Rename binary
         run: cp target/${{ matrix.target }}/release/tmux-agent-sidebar ${{ matrix.asset }}
