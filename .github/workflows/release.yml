@@ -39,6 +39,10 @@ jobs:
             rustup target add ${{ matrix.target }}
           fi
 
+      - name: Install rust-src (required by zigbuild)
+        if: matrix.zigbuild
+        run: rustup component add rust-src
+
       - name: Install zig
         if: matrix.zigbuild
         run: sudo snap install zig --classic --edge
